@@ -1,0 +1,46 @@
+# Environment Variables - Contains API keys
+.env
+.env.local
+.env.*.local
+
+# Python Cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+.coverage
+.pytest_cache/
+
+# IDE and Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Model files (optional - uncomment if models are large)
+# models/*.pkl
+# models/*.joblib
+
+# Data files (optional - uncomment if data is sensitive)
+# data/raw/*.csv
+# data/processed/*.csv
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+temp/
+tmp/
