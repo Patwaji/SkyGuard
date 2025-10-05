@@ -289,7 +289,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 For questions, suggestions, or support:
 - **Issues**: Use GitHub Issues for bug reports and feature requests
 - **Discussions**: Use GitHub Discussions for general questions
-- **Email**: [Add your contact email]
+- **Email**: [patwaji.devx@gmail.com]
 
 ---
 
