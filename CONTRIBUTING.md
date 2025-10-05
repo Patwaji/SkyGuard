@@ -41,10 +41,6 @@ Thank you for your interest in contributing to SkyGuard!
 
 Before submitting a PR, please run:
 ```bash
-# Test data processing scripts
-cd scripts
-python test_paths.py
-
 # Test the main application
 streamlit run app/main_app.py
 ```

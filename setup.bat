@@ -18,11 +18,7 @@ if not exist .env (
 )
 
 echo.
-echo [3/4] Testing configuration...
-python scripts/test_paths.py
-
-echo.
-echo [4/4] Setup complete!
+echo [3/3] Setup complete!
 echo.
 echo ============================================
 echo   Next Steps:

@@ -2,7 +2,11 @@
 
 A comprehensive air quality monitoring and prediction system for Delhi, India, featuring real-time data visualization, ML-powered forecasting, and AI-driven policy recommendations.
 
-## 🎯 Features
+## # Install dependencies
+pip install -r requirements.txt
+
+# Start development server
+streamlit run app/main_app.py --server.runOnSave truees
 
 ### 📊 **Real-Time Monitoring**
 - **3D Air Quality Visualization**: Interactive 3D pollution cloud mapping
@@ -85,9 +89,7 @@ skyguard/
 │   ├── 01_fetch_data.py            # Data collection from APIs
 │   ├── 02_process_data.py          # Data cleaning and merging
 │   ├── 03_train_model.py           # Basic model training
-│   ├── 04_train_advanced_model.py  # Advanced model training
-│   ├── test_paths.py               # Path validation utility
-│   └── README.md                   # Scripts documentation
+│   └── 04_train_advanced_model.py  # Advanced model training
 ├── 🔐 .env                         # Environment variables (create from .env.example)
 ├── 🔐 .env.example                 # Environment template
 ├── 📋 .gitignore                   # Git ignore rules
@@ -214,7 +216,6 @@ pip install -r requirements.txt  # Install dependencies
 
 **"File Not Found"**
 - Run scripts from their respective directories
-- Use `python scripts/test_paths.py` to verify paths
 - Ensure data directories exist
 
 **"Google Earth Engine Authentication"**
