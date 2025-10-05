@@ -1,5 +1,4 @@
 import ee
-import openaq
 import pandas as pd
 import requests
 import os

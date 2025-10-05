@@ -2,11 +2,15 @@
 
 A comprehensive air quality monitoring and prediction system for Delhi, India, featuring real-time data visualization, ML-powered forecasting, and AI-driven policy recommendations.
 
-## # Install dependencies
+## 🚀 Quick Start
+
+```bash
+# Install dependencies
 pip install -r requirements.txt
 
 # Start development server
-streamlit run app/main_app.py --server.runOnSave truees
+streamlit run app/main_app.py
+```
 
 ### 📊 **Real-Time Monitoring**
 - **3D Air Quality Visualization**: Interactive 3D pollution cloud mapping
