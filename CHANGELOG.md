@@ -54,3 +54,17 @@ All notable changes to SkyGuard will be documented in this file.
 
 ---
 
+**Full Changelog**: https://github.com/yourusername/skyguard/commits/main
+
+#### 🎯 Target Location
+- Primary focus: Delhi, India (28.6139°N, 77.2090°E)
+- Extensible to other locations with configuration changes
+
+### 🔄 Data Processing
+- Automated data fetching from multiple sources
+- Historical data processing and merging
+- ML model training with proper data scaling
+- Real-time data integration with caching
+
+---
+
