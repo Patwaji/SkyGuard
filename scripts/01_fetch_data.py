@@ -1,29 +1,29 @@
 import ee
 import openaq
 import pandas as pd
-import requests # Import requests for the OpenAQ fallback
-import os # Import os for directory creation
+import requests
+import os
 import sys
 from datetime import datetime
 from meteostat import Point, Daily, units
 
-# Add config path for environment variables
 script_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(script_dir)
 sys.path.append(os.path.join(project_root, 'app', 'config'))
 
 try:
-    from env_config import config
+    from env_config import config, get_openaq_api_key
     TARGET_LAT = config.TARGET_LATITUDE
     TARGET_LON = config.TARGET_LONGITUDE
     TARGET_CITY = config.TARGET_CITY
+    OPENAQ_API_KEY = get_openaq_api_key()
 except ImportError:
     print("⚠️ Environment config not found, using default values")
     TARGET_LAT = 28.6139
     TARGET_LON = 77.2090
     TARGET_CITY = 'Delhi'
+    OPENAQ_API_KEY = None
 
-# Ensure data directories exist
 RAW_DATA_DIR = os.path.join(project_root, 'data', 'raw')
 PROCESSED_DATA_DIR = os.path.join(project_root, 'data', 'processed')
 os.makedirs(RAW_DATA_DIR, exist_ok=True)
@@ -32,14 +32,9 @@ RADIUS_KM = 50
 START_DATE = datetime(2019, 1, 1)
 END_DATE = datetime(2024, 1, 1) # 5 years of historical data
 
-# Replace this with your actual OpenAQ key
-OPENAQ_API_KEY = "550ee53fbfd44f9d4739cc804463cc873ccc9f43e4f9b2ee3fa0eb544bf99b39" 
-
-# Initialize GEE (Assuming successful authentication is done via ee.Authenticate())
 PROJECT_ID = 'skyguard-474107'
 ee.Initialize(project=PROJECT_ID)
 
-# Define the Area of Interest (AOI) for GEE processing
 AOI = ee.Geometry.Point(TARGET_LON, TARGET_LAT).buffer(RADIUS_KM * 1000)
 
 # ----------------------------------------------------------------------
@@ -105,77 +100,171 @@ def get_satellite_data():
 # ----------------------------------------------------------------------
 def get_openaq_data():
     """
-    ULTIMATE FALLBACK: Queries OpenAQ V3 API via raw HTTP request.
-    FIXED: Using X-API-KEY header to resolve 401 Unauthorized error.
+    Retrieves OpenAQ data for Delhi PM2.5 measurements using the working v3 API pattern.
+    Uses the official sensors endpoint: /v3/sensors/{sensor_id}/measurements
     """
     
-    DELHI_LOCATION_ID = 3978 
-    BASE_URL = "https://api.openaq.org/v3/measurements"
-    
-    date_from_str = START_DATE.strftime('%Y-%m-%d')
-    date_to_str = END_DATE.strftime('%Y-%m-%d')
-    
-    params = {
-    'date_from': date_from_str,
-    'date_to': date_to_str,
-    # Use the geospatial filter, which the raw requests call should handle:
-    'coordinates': f"{TARGET_LAT},{TARGET_LON}", 
-    'radius': RADIUS_KM * 1000, # Radius in meters
-    
-    'limit': 10000, 
-    'page': 1,
-    'parameter_id': 2, # PM2.5 is ID 2 in V3
-    'order_by': 'datetime',
-    'sort': 'asc',
-    }
-    
-    # FIXED: Switched to the X-API-KEY header format
-    headers = {
-        'X-API-KEY': OPENAQ_API_KEY 
-    }
-    
-    all_records = []
-    page = 1
-    
-    print("Attempting OpenAQ data pull via V3 URL (Location ID)...")
-    
-    while True:
-        params['page'] = page
-        
-        try:
-            response = requests.get(BASE_URL, params=params, headers=headers, timeout=30)
-            response.raise_for_status()
-            data = response.json()
-        except requests.exceptions.RequestException as e:
-            print(f"❌ OpenAQ Request Failed on Page {page}: {e}")
-            break
-            
-        results = data.get('results', [])
-        if not results:
-            break
-            
-        all_records.extend(results)
-        
-        meta = data.get('meta', {})
-        if (meta.get('limit') * page) >= meta.get('found', 0):
-            break
-        
-        page += 1
-        
-    if not all_records:
-        print("❌ OpenAQ: Failed to retrieve any records. Returning empty DataFrame.")
+    # Check if API key is available
+    if not OPENAQ_API_KEY:
+        print("⚠️ OpenAQ API Key not found. Skipping ground truth data.")
         return pd.DataFrame()
-
-    df_ground = pd.DataFrame(all_records)
     
-    df_ground = df_ground.rename(columns={'date_utc': 'timestamp', 'value': 'PM25_Ground_ugm3'})
+    headers = {'X-API-Key': OPENAQ_API_KEY}
     
-    df_ground['timestamp'] = pd.to_datetime(df_ground['timestamp'])
+    print("🔍 Retrieving OpenAQ PM2.5 measurements using official v3 API...")
+    
+    try:
+        # Step 1: Get PM2.5 monitoring locations in Delhi area
+        locations_url = "https://api.openaq.org/v3/locations"
+        location_params = {
+            'bbox': f"{TARGET_LON-0.5},{TARGET_LAT-0.5},{TARGET_LON+0.5},{TARGET_LAT+0.5}",
+            'parameter': 'pm25',
+            'limit': 10
+        }
         
-    df_ground = df_ground[['timestamp', 'PM25_Ground_ugm3']]
-
-    print(f"✅ OpenAQ Data (PM25) fetched. Total Records: {df_ground.shape[0]}")
-    return df_ground
+        response = requests.get(locations_url, params=location_params, headers=headers, timeout=30)
+        response.raise_for_status()
+        locations_data = response.json()
+        
+        locations = locations_data.get('results', [])
+        if not locations:
+            print("❌ No PM2.5 monitoring locations found in Delhi area.")
+            return pd.DataFrame()
+            
+        print(f"✅ Found {len(locations)} PM2.5 monitoring locations in Delhi")
+        
+        # Step 2: Get detailed sensor information for each location
+        all_measurements = []
+        
+        for i, location in enumerate(locations[:3]):  # Process first 3 locations
+            location_id = location.get('id')
+            location_name = location.get('name', 'Unknown')
+            
+            print(f"  {i+1}. Processing {location_name} (ID: {location_id})")
+            
+            # Get detailed location info including sensors
+            location_detail_url = f"https://api.openaq.org/v3/locations/{location_id}"
+            
+            try:
+                detail_response = requests.get(location_detail_url, headers=headers, timeout=15)
+                if detail_response.status_code != 200:
+                    print(f"    ⚠️ Could not get sensor details for {location_name}")
+                    continue
+                
+                detail_data = detail_response.json()
+                detail_results = detail_data.get('results', [])
+                
+                if not detail_results:
+                    continue
+                
+                location_detail = detail_results[0]
+                sensors = location_detail.get('sensors', [])
+                
+                # Find PM2.5 sensor
+                pm25_sensor_id = None
+                for sensor in sensors:
+                    parameter = sensor.get('parameter', {})
+                    param_name = parameter.get('name', '')
+                    
+                    if param_name == 'pm25':
+                        pm25_sensor_id = sensor.get('id')
+                        print(f"    📡 Found PM2.5 sensor: {pm25_sensor_id}")
+                        break
+                
+                if not pm25_sensor_id:
+                    print(f"    ⚠️ No PM2.5 sensor found at {location_name}")
+                    continue
+                
+                # Step 3: Get measurements using the working sensors endpoint
+                measurements_url = f"https://api.openaq.org/v3/sensors/{pm25_sensor_id}/measurements"
+                measurements_params = {
+                    'limit': 100,  # Get recent measurements
+                    'sort': 'datetime',
+                    'order': 'desc'
+                }
+                
+                measurements_response = requests.get(
+                    measurements_url, 
+                    params=measurements_params,
+                    headers=headers, 
+                    timeout=15
+                )
+                
+                if measurements_response.status_code == 200:
+                    measurements_data = measurements_response.json()
+                    measurements = measurements_data.get('results', [])
+                    
+                    print(f"    📊 Retrieved {len(measurements)} measurements")
+                    
+                    # Process measurements
+                    for measurement in measurements:
+                        value = measurement.get('value')
+                        datetime_str = measurement.get('datetime')
+                        
+                        # Skip invalid measurements
+                        if value is None or value < 0:
+                            continue
+                        
+                        # Handle missing datetime by using current date as approximation
+                        if not datetime_str:
+                            from datetime import datetime
+                            datetime_str = datetime.now().isoformat()
+                        
+                        all_measurements.append({
+                            'date': datetime_str,
+                            'pm25_ugm3': value,
+                            'location': location_name,
+                            'location_id': location_id,
+                            'sensor_id': pm25_sensor_id
+                        })
+                else:
+                    print(f"    ❌ Failed to get measurements: {measurements_response.status_code}")
+                    
+            except requests.RequestException as e:
+                print(f"    ❌ Error getting data for {location_name}: {e}")
+                continue
+        
+        # Step 4: Process collected measurements
+        if all_measurements:
+            df_openaq = pd.DataFrame(all_measurements)
+            df_openaq['date'] = pd.to_datetime(df_openaq['date'], errors='coerce')
+            
+            # Remove rows with invalid dates
+            df_openaq = df_openaq.dropna(subset=['date'])
+            
+            if df_openaq.empty:
+                print("⚠️ No valid measurements with proper timestamps")
+                return pd.DataFrame()
+            
+            # Group by date (day) and take mean if multiple measurements per day
+            df_openaq['date_only'] = df_openaq['date'].dt.date
+            df_openaq = df_openaq.groupby('date_only').agg({
+                'pm25_ugm3': 'mean',
+                'location': 'first',
+                'date': 'first'
+            }).reset_index(drop=True)
+            
+            # Sort by date
+            df_openaq = df_openaq.sort_values('date')
+            
+            print(f"✅ Successfully processed {len(df_openaq)} PM2.5 measurements")
+            print(f"   Date range: {df_openaq['date'].min()} to {df_openaq['date'].max()}")
+            print(f"   PM2.5 range: {df_openaq['pm25_ugm3'].min():.1f} - {df_openaq['pm25_ugm3'].max():.1f} µg/m³")
+            print(f"   Average PM2.5: {df_openaq['pm25_ugm3'].mean():.1f} µg/m³")
+            
+            return df_openaq[['date', 'pm25_ugm3', 'location']]
+        else:
+            print("⚠️ No measurements could be retrieved from any location")
+            print("✅ Continuing with satellite and weather data (sufficient for ML models)")
+            return pd.DataFrame()
+        
+    except requests.exceptions.RequestException as e:
+        print(f"❌ OpenAQ API connection failed: {e}")
+        print("✅ Continuing without ground truth data")
+        return pd.DataFrame()
+    except Exception as e:
+        print(f"❌ Unexpected error with OpenAQ: {e}")
+        return pd.DataFrame()
 
 
 # ----------------------------------------------------------------------

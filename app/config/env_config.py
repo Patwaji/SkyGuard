@@ -15,6 +15,7 @@ class Config:
     # API Keys
     GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
     NASA_API_KEY = os.getenv('NASA_API_KEY')
+    OPENAQ_API_KEY = os.getenv('OPENAQ_API_KEY')
     
     # OpenMeteo Configuration
     OPENMETEO_BASE_URL = os.getenv('OPENMETEO_BASE_URL', 'https://air-quality-api.open-meteo.com/v1/air-quality')
@@ -75,6 +76,11 @@ class Config:
                 st.success("✅ NASA API Key: Loaded")
             else:
                 st.info("ℹ️ NASA API Key: Not configured")
+                
+            if cls.OPENAQ_API_KEY:
+                st.success("✅ OpenAQ API Key: Loaded")
+            else:
+                st.info("ℹ️ OpenAQ API Key: Not configured")
             
             # Location
             st.info(f"📍 Target: {cls.TARGET_CITY} ({cls.TARGET_LATITUDE}, {cls.TARGET_LONGITUDE})")
@@ -93,6 +99,10 @@ def get_gemini_api_key():
 def get_nasa_api_key():
     """Get NASA API key"""
     return config.get_api_key('NASA_API_KEY')
+
+def get_openaq_api_key():
+    """Get OpenAQ API key"""
+    return config.get_api_key('OPENAQ_API_KEY')
 
 def validate_environment():
     """Validate environment configuration"""

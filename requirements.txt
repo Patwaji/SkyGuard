@@ -21,7 +21,7 @@ python-dotenv>=1.0.0
 earthengine-api>=0.1.360
 
 # Weather and Air Quality APIs
-openaq>=2.0.0
+openaq==1.1.1
 meteostat>=1.6.0
 
 # Optional: Enhanced Features
